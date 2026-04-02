@@ -37,3 +37,10 @@ module "networking" {
   database_subnet_cidrs = ["10.0.21.0/24", "10.0.22.0/24"]
   availability_zones    = ["eu-central-1a", "eu-central-1b"]
 }
+module "security" {
+  source = "./modules/security"
+
+  project_name = var.project_name
+  environment  = var.environment
+  vpc_id       = module.networking.vpc_id
+}
