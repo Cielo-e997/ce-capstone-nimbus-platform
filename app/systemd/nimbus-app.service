@@ -1,0 +1,13 @@
+[Unit]
+Description=Nimbus Flask Application
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/opt/nimbus-app
+EnvironmentFile=/etc/nimbus-app.env
+ExecStart=/opt/nimbus-app/venv/bin/python /opt/nimbus-app/src/app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
