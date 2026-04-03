@@ -37,10 +37,34 @@ module "networking" {
   database_subnet_cidrs = ["10.0.21.0/24", "10.0.22.0/24"]
   availability_zones    = ["eu-central-1a", "eu-central-1b"]
 }
+
 module "security" {
   source = "./modules/security"
 
   project_name = var.project_name
   environment  = var.environment
   vpc_id       = module.networking.vpc_id
+}
+
+module "database" {
+  source = "./modules/database"
+
+  private_db_subnet_ids = module.networking.private_db_subnet_ids
+  db_security_group_id  = module.security.db_security_group_id
+}
+
+module "compute" {
+  source = "./modules/compute"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id                 = module.networking.vpc_id
+  public_subnet_ids      = module.networking.public_subnet_ids
+  private_app_subnet_ids = module.networking.private_app_subnet_ids
+
+  alb_security_group_id = module.security.alb_security_group_id
+  app_security_group_id = module.security.app_security_group_id
+
+  db_endpoint = module.database.db_instance_endpoint
 }
