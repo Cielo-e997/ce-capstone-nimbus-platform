@@ -43,3 +43,27 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
     Project     = "nimbus"
   }
 }
+
+resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_hosts" {
+  alarm_name          = "nimbus-alb-unhealthy-hosts"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 1
+
+  dimensions = {
+    LoadBalancer = module.compute.alb_arn_suffix
+  }
+
+  alarm_description  = "Alert when ALB has unhealthy targets"
+  treat_missing_data = "notBreaching"
+
+  tags = {
+    Name        = "nimbus-alb-unhealthy-hosts"
+    Environment = var.environment
+    Project     = "nimbus"
+  }
+}

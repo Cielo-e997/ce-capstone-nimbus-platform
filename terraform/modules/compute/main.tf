@@ -64,6 +64,20 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.this.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+
+  certificate_arn = "arn:aws:acm:eu-central-1:170638199494:certificate/6966fdcf-9fbc-4209-bb97-2963f362a232"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.app.arn
+  }
+}
+
 resource "aws_launch_template" "app" {
   name_prefix   = "${local.name_prefix}-lt-"
   image_id      = data.aws_ami.ubuntu.id
