@@ -1,0 +1,30 @@
+name: Terraform Tests
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "tests/**"
+      - ".github/workflows/**"
+  push:
+    branches:
+      - main
+    paths:
+      - "terraform/**"
+      - "tests/**"
+      - ".github/workflows/**"
+
+jobs:
+  terraform-tests:
+    name: Terraform Test Stage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify tests directory exists
+        run: test -d tests/terratest
+
+      - name: Verify test file exists
+        run: test -f tests/terratest/README.md
