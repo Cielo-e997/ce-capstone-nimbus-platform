@@ -1,180 +1,205 @@
-# Runbook 📘
+# Operations Runbook
 
-This runbook provides operational guidance for managing, troubleshooting, and maintaining the Nimbus Platform.
+## Overview
 
----
+This runbook provides operational guidance for deploying, managing, and troubleshooting the Nimbus Platform.
 
-## 🚀 Application access
-
-The application is exposed via the Application Load Balancer (ALB).
-
-- Open the ALB DNS in your browser  
-- Example output includes:
-  - Environment  
-  - Instance ID  
-  - Availability Zone  
-  - DB Host  
-
-Health endpoint:
-
-/health  
+It is intended to simulate real-world operational procedures for a cloud-based system.
 
 ---
 
-## 🔍 Basic checks
+## Deployment
 
-### 1. Application not loading
+### Initial Deployment
+
+```bash
+git clone https://github.com/Cielo-e997/ce-capstone-nimbus-platform.git
+cd ce-capstone-nimbus-platform/terraform
+
+terraform init
+terraform plan
+terraform apply
+```
+
+---
+
+### Updating Infrastructure
+
+```bash
+terraform plan
+terraform apply
+```
+
+All infrastructure changes should ideally go through the CI/CD pipeline via GitHub Actions.
+
+---
+
+## Accessing the Application
+
+After deployment, the application is available via the Application Load Balancer:
+
+- HTTP: http://<alb-dns>
+- HTTPS: https://<alb-dns>
+
+Note: HTTPS uses a self-signed certificate, so browsers may show a warning.
+
+---
+
+## Monitoring
+
+### Key Health Indicators
+
+- Application health endpoint: `/health` → should return 200 OK  
+- Instance health: Verified via ALB target group  
+- CPU utilization: Should remain under normal thresholds  
+- Error rate: Should remain low  
+
+---
+
+### CloudWatch Dashboard
+
+The system includes a custom dashboard displaying:
+
+- CPU usage  
+- Request patterns  
+- Error rates  
+- Resource utilization  
+
+---
+
+### Alerts
+
+| Alert | Trigger | Action |
+|------|--------|--------|
+| High CPU | >70% | Check scaling / load |
+| ALB 5XX Errors | >1 error | Investigate application |
+| Unhealthy Targets | >1 | Check instance health |
+
+---
+
+## Common Operations
+
+### Scaling
+
+Scaling is handled automatically via Auto Scaling Group.
+
+Manual adjustments (if needed):
+
+- Increase desired capacity  
+- Adjust min/max limits  
+
+---
+
+### Rolling Updates
+
+To update the application:
+
+1. Modify launch template or user data  
+2. Apply Terraform changes  
+3. Auto Scaling replaces instances gradually  
+
+---
+
+## Troubleshooting
+
+### Issue: Application Not Responding
 
 Check:
 
-- ALB DNS is correct  
-- Instances are running in the Auto Scaling Group  
-- Target Group health checks  
-
-AWS Console:
-
-EC2 → Target Groups → Check "Healthy" instances  
-
----
-
-### 2. Instances unhealthy
+1. ALB target health  
+2. EC2 instance status  
+3. Security group rules  
+4. Application logs  
 
 Possible causes:
 
-- Application not running  
-- User data failed  
-- Security group misconfiguration  
-
-Steps:
-
-1. Go to EC2 → Instances  
-2. Connect via Session Manager (if enabled)  
-3. Check service status:
-
-sudo systemctl status nimbus-app  
-
-4. Restart if needed:
-
-sudo systemctl restart nimbus-app  
+- Health check endpoint failing  
+- Application crash  
+- Misconfigured security groups  
 
 ---
 
-### 3. High CPU usage
-
-Triggered by CloudWatch Alarm: nimbus-high-cpu
-
-Actions:
-
-- Check instance metrics in CloudWatch  
-- Verify traffic load  
-- Scale out manually (if needed):
-
-aws autoscaling set-desired-capacity 
-  --auto-scaling-group-name nimbus-dev-asg 
-  --desired-capacity 3  
-
----
-
-### 4. ALB 5XX errors
-
-Triggered by alarm: nimbus-alb-5xx-errors
-
-Possible causes:
-
-- App crash  
-- Instances failing health checks  
-
-Steps:
-
-- Check Target Group health  
-- Review application logs:
-
-journalctl -u nimbus-app  
-
----
-
-### 5. Database connectivity issues
+### Issue: Unhealthy Targets
 
 Check:
 
-- RDS instance status → "Available"  
-- Security group allows traffic from EC2  
-- DB endpoint is correct  
-
-Verify from app instance:
-
-ping <db-endpoint>  
+- `/health` endpoint is working  
+- Application is running  
+- Correct port configuration  
 
 ---
 
-## 🔄 Deployment updates
+### Issue: High CPU Usage
 
-When updating application or user_data:
+Check:
 
-1. Apply Terraform changes:
-
-terraform apply  
-
-2. Trigger instance refresh:
-
-aws autoscaling start-instance-refresh 
-  --auto-scaling-group-name nimbus-dev-asg 
-  --region eu-central-1  
-
-3. Monitor progress:
-
-aws autoscaling describe-instance-refreshes 
-  --auto-scaling-group-name nimbus-dev-asg 
-  --region eu-central-1  
+- Traffic spikes  
+- Application performance  
+- Scaling behavior  
 
 ---
 
-## 📊 Monitoring
+### Issue: HTTPS Not Working
 
-Use CloudWatch:
+Check:
 
-- Dashboards → system overview  
-- Alarms → active alerts  
-
-Key metrics:
-
-- CPUUtilization  
-- HTTPCode_ELB_5XX  
-- TargetResponseTime  
+- ALB listener on port 443  
+- ACM certificate attached  
+- Correct DNS used  
 
 ---
 
-## 💰 Cost monitoring
+## Incident Response
 
-- Check AWS Budgets dashboard  
-- Alerts trigger when approaching limits  
+### Full Outage
 
----
-
-## 🔐 Configuration management
-
-Stored in SSM Parameter Store:
-
-- /nimbus/dev/db_host  
-- /nimbus/dev/db_name  
-- /nimbus/dev/db_user  
+1. Check ALB health  
+2. Verify instances are running  
+3. Check recent Terraform changes  
+4. Review CloudWatch metrics  
+5. Roll back if needed  
 
 ---
 
-## 🧯 Emergency actions
+### Degraded Performance
 
-If system is unstable:
-
-- Restart instances:
-
-aws autoscaling start-instance-refresh  
-
-- Reduce traffic (if needed)  
-- Investigate logs before scaling further  
+1. Check CPU and memory  
+2. Review logs  
+3. Verify database connectivity  
+4. Adjust scaling if needed  
 
 ---
 
-## 📌 Final note
+## Backup & Recovery
 
-This runbook is designed for quick reaction during incidents.  
-Always prioritize identifying the root cause before applying fixes.
+- Infrastructure is fully defined in Terraform → can be recreated  
+- Database relies on AWS-managed backups  
+- Code stored in GitHub  
+
+---
+
+## Maintenance
+
+- Apply infrastructure changes via Terraform  
+- Monitor CloudWatch regularly  
+- Keep dependencies updated  
+
+---
+
+## Disaster Recovery
+
+### Strategy
+
+- Re-deploy infrastructure via Terraform  
+- Restore database from snapshot  
+
+### Targets
+
+- RTO (Recovery Time Objective): Few hours  
+- RPO (Recovery Point Objective): Depends on DB backup frequency  
+
+---
+
+## Notes
+
+This runbook reflects a simplified but realistic operational model, focusing on clarity and practical usage rather than over-engineering.

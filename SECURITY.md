@@ -1,96 +1,155 @@
-# Security 🔐
+# Security Documentation
 
-Nimbus Platform is designed with security as a core principle, following common AWS best practices to minimize exposure and enforce controlled access between components.
+## Security Principles
 
----
+Nimbus Platform follows a defense-in-depth approach, applying security controls across multiple layers:
 
-## 🌐 Network isolation
+1. **Network security** – Isolation and controlled access between tiers  
+2. **Access control** – Least privilege IAM roles  
+3. **Data protection** – Encryption in transit and secure secret management  
 
-The infrastructure is deployed inside a custom VPC and separated into multiple subnet layers:
-
-- Public subnets → only for the Application Load Balancer  
-- Private application subnets → for EC2 instances  
-- Private database subnets → for RDS  
-
-This ensures that only the load balancer is publicly accessible, while the rest of the system remains isolated.
+The goal is to reduce the attack surface while maintaining operational simplicity.
 
 ---
 
-## 🧱 Security Groups
+## Network Security
 
-Security Groups are used to strictly control traffic between layers:
+### Security Group Configuration
 
-### ALB Security Group
-- Allows inbound HTTP (port 80) from the internet  
-- Forwards traffic to EC2 instances  
-
----
-
-### EC2 Security Group
-- Allows inbound traffic only from the ALB  
-- No direct public access  
+#### Load Balancer Security Group
+- Inbound:
+  - HTTP (80) from 0.0.0.0/0  
+  - HTTPS (443) from 0.0.0.0/0  
+- Outbound:
+  - Application tier (app port)
 
 ---
 
-### RDS Security Group
-- Allows inbound traffic only from EC2 instances  
-- Database is not publicly accessible  
+#### Application Security Group
+- Inbound:
+  - From ALB security group only  
+- Outbound:
+  - Database (DB port)
+  - Internet (via NAT Gateway)
 
 ---
 
-## 🔒 Principle of least privilege
-
-Each component only has access to what it strictly needs:
-
-- EC2 instances do not expose unnecessary ports  
-- RDS is fully isolated from public access  
-- Traffic flows only in one direction: ALB → EC2 → RDS  
+#### Database Security Group
+- Inbound:
+  - From application security group only  
+- Outbound:
+  - None  
 
 ---
 
-## 🔐 Secrets and configuration
+### Network Isolation
 
-Sensitive or environment-specific values are not hardcoded.
+- **Database layer** is fully private with no internet access  
+- **Application layer** runs in private subnets and cannot be accessed directly  
+- **Only the ALB is public-facing**  
 
-Instead, they are stored in AWS Systems Manager Parameter Store:
-
-- /nimbus/dev/db_host  
-- /nimbus/dev/db_name  
-- /nimbus/dev/db_user  
-
-This improves security and flexibility.
+This ensures strict separation between external traffic and internal services.
 
 ---
 
-## 🛡️ Instance metadata protection
+## Identity & Access Management
 
-EC2 instances use IMDSv2 (Instance Metadata Service v2), which protects against SSRF-style attacks by requiring session tokens.
+### IAM Roles
 
----
+- **EC2 Instance Role**
+  - Access to SSM Parameter Store
+  - Permission to send logs to CloudWatch  
 
-## 📊 Monitoring and alerts
-
-Security is reinforced through observability:
-
-- CloudWatch Alarms detect abnormal behavior  
-- CPU spikes or ALB errors can indicate issues  
-
----
-
-## 💰 Cost awareness as security
-
-Budget alerts are configured to detect unusual spending patterns, which can also signal potential misuse or misconfiguration.
+- **CI/CD (GitHub Actions)**
+  - Permissions to run Terraform  
+  - Scoped to required AWS resources only  
 
 ---
 
-## 📌 Summary
+### Least Privilege
 
-Security in Nimbus Platform is based on:
+All IAM roles are designed to include only the permissions strictly required for their function.
 
-- Network isolation (public vs private layers)  
-- Controlled communication via Security Groups  
-- No direct exposure of application or database  
-- Externalized configuration using SSM  
-- Continuous monitoring and alerting  
+No wildcard permissions are used unless necessary.
 
-The design minimizes risk while keeping the system scalable and maintainable.
+---
+
+## Secrets Management
+
+- Secrets are stored in **AWS Systems Manager Parameter Store**
+- Sensitive values (such as database endpoints or credentials) are **not hardcoded**
+- Access is restricted via IAM roles
+
+This ensures secrets are managed securely and centrally.
+
+---
+
+## Encryption
+
+### Data in Transit
+
+- HTTPS enabled via **AWS Certificate Manager (ACM)**
+- TLS termination handled at the Application Load Balancer  
+
+---
+
+### Data at Rest
+
+- AWS-managed services (EBS, RDS) use encryption by default  
+- No unencrypted storage is intentionally used  
+
+---
+
+## Security Scanning
+
+Security scanning is integrated directly into the CI/CD pipeline.
+
+- **Tool:** Checkov  
+- **Scope:** Terraform code  
+- **Trigger:** On push and pull requests  
+- **Purpose:** Detect misconfigurations before deployment  
+
+This helps prevent insecure infrastructure from being applied.
+
+---
+
+## Monitoring & Detection
+
+- CloudWatch alarms monitor:
+  - High CPU usage  
+  - Load balancer errors  
+  - Unhealthy instances  
+
+- Logs are available for investigation and troubleshooting  
+
+---
+
+## Known Risks & Trade-offs
+
+### Single NAT Gateway
+
+- **Risk:** Single point of failure  
+- **Impact:** Loss of outbound connectivity for private resources  
+- **Decision:** Accepted to reduce cost in a development environment  
+
+---
+
+### Self-Signed HTTPS Certificate
+
+- **Risk:** Not trusted by browsers  
+- **Impact:** Security warning for users  
+- **Decision:** Acceptable for demonstration purposes  
+
+---
+
+## Future Security Improvements
+
+- Implement AWS Config or Security Hub for compliance monitoring  
+- Add Web Application Firewall (WAF)  
+- Enable GuardDuty for threat detection  
+- Automate remediation workflows  
+- Introduce secrets rotation  
+
+---
+
+This security model reflects real-world practices while balancing complexity, cost, and project scope.

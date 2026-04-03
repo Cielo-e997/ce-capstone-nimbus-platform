@@ -1,128 +1,236 @@
-# Architecture Overview 🏗️
+# Architecture Documentation
 
-Nimbus Platform is designed following a typical production-ready AWS architecture with separation of concerns, high availability, and security best practices.
+## System Overview
 
----
+### Purpose
 
-## 🌍 High-level design
+Nimbus Platform is a production-ready cloud infrastructure designed to simulate a real-world application environment. It focuses on high availability, scalability, observability, and security using AWS services and Infrastructure as Code.
 
-The system is built inside a custom VPC and split across public and private subnets:
+### Design Goals
 
-- Public layer → Load Balancer  
-- Private application layer → EC2 instances (Auto Scaling Group)  
-- Private data layer → RDS MySQL  
+- High availability through multi-AZ deployment  
+- Clear separation of concerns across tiers  
+- Secure network architecture with private subnets  
+- Automated infrastructure management via Terraform  
+- Observability through monitoring and alerting  
+- Cost-aware design decisions  
 
-This ensures that only the load balancer is exposed to the internet, while the application and database remain protected.
+### Constraints
 
----
-
-## 🧱 Core components
-
-### 1. Networking
-
-- Custom VPC  
-- 2 Public Subnets (Multi-AZ)  
-- 2 Private App Subnets  
-- 2 Private DB Subnets  
-- Internet Gateway (for public access)  
-- NAT Gateway (for outbound access from private subnets)  
+- Single AWS region deployment  
+- Limited time (1-week implementation)  
+- Focus on infrastructure over application complexity  
+- No domain ownership (self-signed HTTPS used)  
 
 ---
 
-### 2. Compute Layer
+## Architecture Overview
 
-- Auto Scaling Group (ASG)
-- Launch Template
-- EC2 instances running a Flask application
+The platform follows a **three-tier architecture**:
 
-Instances are deployed in private subnets and receive traffic only through the ALB.
+1. **Presentation Layer**
+   - Application Load Balancer (ALB)
+   - Handles HTTP and HTTPS traffic
+   - Publicly accessible
 
----
+2. **Application Layer**
+   - EC2 instances managed by Auto Scaling Group
+   - Deployed across multiple Availability Zones
+   - Runs the application logic
 
-### 3. Load Balancer
+3. **Data Layer**
+   - Amazon RDS instance
+   - Hosted in private subnets
+   - Not publicly accessible
 
-- Application Load Balancer (ALB)
-- Public-facing
-- Routes traffic to EC2 instances in the ASG
-- Performs health checks
-
----
-
-### 4. Database Layer
-
-- Amazon RDS (MySQL)
-- Deployed in private DB subnets
-- Not publicly accessible
-- Accessible only from application security group
+Traffic flows from the internet into the ALB, which distributes requests to healthy instances in the application tier.
 
 ---
 
-### 5. Security
+## Components
 
-Security Groups are used to strictly control traffic:
+### Application Load Balancer (ALB)
 
-- ALB → allows HTTP from internet  
-- EC2 → allows traffic only from ALB  
-- RDS → allows traffic only from EC2  
+- **Purpose:** Distribute incoming traffic across application instances  
+- **Type:** Internet-facing  
+- **Subnets:** Public subnets in multiple AZs  
+- **Listeners:**
+  - HTTP (port 80)
+  - HTTPS (port 443)  
+- **SSL:** AWS ACM (self-signed certificate)  
 
-This enforces a clear security boundary between layers.
-
----
-
-## 🔄 Data flow
-
-1. User accesses the application via the ALB  
-2. ALB routes the request to EC2 instances  
-3. EC2 application processes request  
-4. (Optional) Application connects to RDS  
-5. Response is returned to the user  
+**Rationale:**  
+ALB was chosen for its support of HTTP/HTTPS routing and integration with health checks and auto scaling.
 
 ---
 
-## 📊 Observability
+### Application Tier
 
-- CloudWatch Dashboard for system visibility  
-- CloudWatch Alarms for:
+- **Compute:** EC2 instances  
+- **Scaling:** Auto Scaling Group  
+- **Deployment:** Launch Template with user data  
+- **Location:** Private subnets  
+
+**Rationale:**  
+EC2 provides full control over the environment and simplifies deployment without requiring containerization.
+
+---
+
+### Database Layer
+
+- **Service:** Amazon RDS  
+- **Location:** Private subnets  
+- **Access:** Only from application security group  
+
+**Rationale:**  
+Managed database service reduces operational overhead and improves reliability.
+
+---
+
+### Networking
+
+- **VPC:** Custom VPC with segmented subnets  
+- **Subnets:**
+  - Public (ALB)
+  - Private (application)
+  - Private (database)
+- **NAT Gateway:** Enables outbound access from private subnets  
+- **Internet Gateway:** Provides internet access to public subnets  
+
+---
+
+## Network Design
+
+### Subnet Strategy
+
+| Tier        | Subnet Type | Access        |
+|-------------|------------|--------------|
+| ALB         | Public     | Internet     |
+| Application | Private    | Internal only|
+| Database    | Private    | Internal only|
+
+---
+
+### Security Groups
+
+- **ALB Security Group**
+  - Inbound: HTTP/HTTPS from internet
+  - Outbound: Application tier
+
+- **Application Security Group**
+  - Inbound: From ALB only
+  - Outbound: Database + internet (via NAT)
+
+- **Database Security Group**
+  - Inbound: From application tier only
+  - No public access
+
+---
+
+## Data Flow
+
+### HTTP Flow
+
+1. User sends request to ALB  
+2. ALB receives request in public subnet  
+3. ALB forwards request to healthy instance  
+4. Application processes request  
+5. Optional database interaction  
+6. Response returned via ALB  
+
+---
+
+### HTTPS Flow
+
+1. User connects via HTTPS  
+2. ALB terminates TLS using ACM certificate  
+3. Traffic forwarded securely to application instances  
+4. Application processes request  
+5. Response returned to user  
+
+---
+
+## Design Decisions
+
+### Decision: EC2 vs Containers
+
+**Chosen:** EC2  
+
+**Reasoning:**
+- Simpler setup within project timeline  
+- Full control over environment  
+- No need for container orchestration complexity  
+
+**Trade-off:**
+- Less efficient than containers  
+- Manual scaling configuration  
+
+---
+
+### Decision: Single NAT Gateway
+
+**Chosen:** Single NAT  
+
+**Reasoning:**
+- Reduces cost  
+- Acceptable for development environment  
+
+**Trade-off:**
+- Single point of failure  
+- Reduced availability in edge cases  
+
+---
+
+### Decision: Self-Signed HTTPS
+
+**Chosen:** Self-signed ACM certificate  
+
+**Reasoning:**
+- No domain required  
+- Enables demonstration of HTTPS architecture  
+
+**Trade-off:**
+- Browser warning  
+- Not production-grade trust  
+
+---
+
+## High Availability Strategy
+
+- Multi-AZ deployment for application tier  
+- Load balancer distributes traffic across instances  
+- Health checks ensure only healthy instances receive traffic  
+- Auto Scaling replaces failed instances  
+
+---
+
+## Scalability
+
+- Horizontal scaling via Auto Scaling Group  
+- Load balancer handles traffic distribution  
+- Architecture supports increased traffic with minimal changes  
+
+---
+
+## Observability
+
+- CloudWatch dashboard for system metrics  
+- Alerts for:
   - High CPU usage  
-  - ALB 5XX errors  
+  - ALB errors  
+  - Unhealthy instances  
+- Logs available for troubleshooting  
 
 ---
 
-## 💰 Cost control
+## Future Improvements
 
-- AWS Budget configured to monitor monthly spending  
-- Alerts trigger when thresholds are exceeded  
-
----
-
-## 🔐 Configuration
-
-- SSM Parameter Store used to store:
-  - Database host  
-  - Database name  
-  - Database user  
-
-This avoids hardcoding sensitive values.
+- Multi-region deployment for disaster recovery  
+- Containerization with ECS or EKS  
+- Web Application Firewall (WAF)  
+- Advanced monitoring (tracing / APM)  
+- Automated remediation for alerts  
 
 ---
 
-## ⚙️ Design decisions
-
-- Private subnets for application and database → improved security  
-- ALB instead of direct EC2 access → scalability + abstraction  
-- Auto Scaling Group → resilience and elasticity  
-- Modular Terraform structure → maintainability  
-
----
-
-## 📌 Summary
-
-This architecture mirrors real production environments by combining:
-
-- Security (network isolation + SG rules)  
-- Scalability (ASG + ALB)  
-- Reliability (Multi-AZ setup)  
-- Observability (CloudWatch)  
-- Cost awareness (Budgets)  
-
-The goal is not just deployment, but understanding how a cloud system behaves end-to-end
+This architecture reflects real-world cloud design principles, balancing simplicity, cost, and scalability while demonstrating production-ready patterns.
