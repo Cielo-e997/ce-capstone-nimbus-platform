@@ -22,4 +22,9 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Python virtual environment
 app/.venv/
+
+# Sensitive files
+*.key
+*.crt
